@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 
 namespace NeuralNet
 {
@@ -44,13 +45,29 @@ namespace NeuralNet
             }
         }
 
-        public void FillValues(float[] vals)
+        public void Fill(float[] vals)
         {
-            for (int i = 0; i < array.Length; i++)
+            for (int i = 0; i < Math.Min(vals.Length, array.Length); i++)
             {
                 array[i].Value = vals[i];
             }
 
+        }
+
+        public void Fill(float[][] neuronData)
+        {
+            for(int i = 0; i < neuronData.Length; i++)
+            {
+                int len = neuronData[i].Length/2;
+                float[] weights = new float[len];
+                float[] slopes = new float[len];
+                for(int w = 0; w < neuronData[i].Length; w+=2)
+                {
+                    weights[w / 2] = neuronData[i][w];
+                    slopes[w / 2] = neuronData[i][w+1];
+                }
+                array[i] = new Neuron(weights, slopes);
+            }
         }
 
         public float[] GetValues()
@@ -59,6 +76,28 @@ namespace NeuralNet
             for (int i = 0; i < array.Length; i++)
             {
                 ret[i] = array[i].Value;
+            }
+            return ret;
+        }
+
+        public float[][] GetNeuronData() // Each array is a neuron: weight, slope, weight, slope, etc
+        {
+            float[][] ret = new float[array.Length][];
+            for (int i = 0; i < array.Length; i++)
+            {
+                if(array[i].weights != null)
+                {
+                    ret[i] = new float[array[i].weights.Length * 2];
+                    for (int w = 0; w < array[i].weights.Length * 2; w += 2)
+                    {
+                        ret[i][w] = array[i].weights[w/2];
+                        ret[i][w + 1] = array[i].slopes[w/2];
+                    }
+                }
+                else
+                {
+                    ret[i] = new float[0];
+                }
             }
             return ret;
         }
@@ -168,6 +207,93 @@ namespace NeuralNet
             for (int x = i; x < neuralNet.Length - 1; x++)
             {
                 neuralNet[x].FireAll();
+            }
+        }
+
+        public static float LoadNet(ref NeuronList[] bestNet, string path)
+        {
+            if (File.Exists(path))
+            {
+                /* 0 - int - Amount of layers in net
+                 * 1 - int - Amount of neurons in layer
+                 * 2 - int - amount of floats in set for neuron
+                 * 3 - float - Weight/slope data
+                 * i i i fffffff i ffffffff etc
+                 * 0 1 2 3333333 2 33333333 2 33333333 1 2 33333 etc
+                 */
+                float best = 0;
+                using (BinaryReader reader = new BinaryReader(File.Open(path, FileMode.Open)))
+                {
+                    best = reader.ReadSingle();
+                    int layers = reader.ReadInt32();
+                    bestNet = new NeuronList[layers];
+                    for (int i = layers - 1; i >= 0; i--)
+                    {
+                        int neurons = reader.ReadInt32();
+                        if (i == layers - 1) // Output layer
+                        {
+                            bestNet[i] = new NeuronList(null, neurons);
+                        }
+                        else
+                        {
+                            bestNet[i] = new NeuronList(bestNet[i + 1], neurons);
+                        }
+
+                        float[] weights;
+                        float[] slopes;
+                        for (int n = 0; n < neurons; n++)
+                        {
+                            int size = reader.ReadInt32();
+                            weights = new float[size / 2];
+                            slopes = new float[size / 2];
+                            for (int d = 0; d < size; d += 2)
+                            {
+                                weights[d / 2] = reader.ReadSingle();
+                                slopes[d / 2] = reader.ReadSingle();
+                            }
+                            bestNet[i].array[n] = new Neuron(weights, slopes);
+                        }
+                    }
+                }
+                return best;
+            }
+            else
+            {
+                return -1;
+            }
+        }
+
+        public static void SaveNet(NeuronList[] bestNet, float bestScore, string path)
+        {
+            /* 0 - int - Amount of layers in net
+             * 1 - int - Amount of neurons in layer
+             * 2 - int - amount of floats in set for neuron
+             * 3 - float - Weight/slope data
+             * i i i fffffff i ffffffff etc
+             * 0 1 2 3333333 2 33333333 2 33333333 1 2 33333 etc
+            */
+
+            using (BinaryWriter writer = new BinaryWriter(File.Open(path, FileMode.Create)))
+            {
+                writer.Write(bestScore);
+                writer.Write(bestNet.Length); // Amount of layers [0]
+                for (int i = bestNet.Length - 1; i >= 0; i--)
+                {// For each layer
+
+                    float[][] layer = bestNet[i].GetNeuronData();
+                    writer.Write(layer.Length); // Amount of neurons in layer [1]
+
+                    for (int n = 0; n < layer.Length; n++)
+                    {// For each neuron
+
+                        writer.Write(layer[n].Length); // Amount of weights/slopes in neuron [2]
+
+                        for (int w = 0; w < layer[n].Length; w++)
+                        {
+                            writer.Write(layer[n][w]); // Write the weight and slope data [3]
+                        }
+                    }
+                }
             }
         }
 
