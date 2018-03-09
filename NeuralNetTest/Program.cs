@@ -69,8 +69,15 @@ namespace NeuralNetTest
                         Console.WriteLine("Please specify a file path. Example: C:\\dir\\MyNeuralNet");
                         break;
                     }
+                    if(bestNet == null)
+                    {
+                        Console.WriteLine("Cannot save an empty network.");
+                        break;
+                    }
                     args[0] = "";
-                    path = string.Join(" ", args).Trim() + ".znn";
+                    path = string.Join(" ", args).Trim();
+                    if (!path.EndsWith(".znn"))
+                        path += ".znn";
 
                     NeuronList.SaveNet(bestNet, bestScore, path);
 
@@ -78,12 +85,19 @@ namespace NeuralNetTest
                     break;
                 case "load":
                     args[0] = ""; // TODO: Load without bestScore
-
+                    bool noBest = false;
+                    if(args[1] == "--noscore" || args[1] == "-ns")
+                    {
+                        noBest = true;
+                        args[1] = "";
+                    }
                     path = string.Join(" ", args).Trim();
                     if (!path.EndsWith(".znn"))
                         path += ".znn";
                     if ((bestScore = NeuronList.LoadNet(ref bestNet, path)) >= 0)
                     {
+                        if (noBest)
+                            bestScore = 0;
                         Console.WriteLine(path + " loaded.\n");
                     }
                     else
@@ -101,8 +115,8 @@ namespace NeuralNetTest
                     }
                     break;
                 case "help":
-                    Console.WriteLine("\nhelp\n- Shows this help dialog.\n\nsave [path]\n- Saves the 'best' Neural Network to [path].\n\n" +
-                        "load [path]\n- Loads the 'best' Neural Network from [path].\n\n" +
+                    Console.WriteLine("\nhelp\n- Shows this help dialog.\n\nsave [file]\n- Saves the 'best' Neural Network to [file].\n\n" +
+                        "load [file]\n- Loads the 'best' Neural Network from [file].\n\n" +
                         "learn [x]\n- Sends the current neural net through [x] training sessions, or creates one.\n\n" +
                         "exit\n- Quits the program.\n");
                     break;
