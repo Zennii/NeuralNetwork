@@ -11,12 +11,14 @@ namespace NeuralNetTest
 {
     class Program
     {
-        public const int TASKS = 12;
+        public const int TASKS = 10;
+        public const int NUM_NEURONS = 12;
         public const float ACC_THRESHOLD = 0.26f;
-        NeuronList[] bestNet = null;
-        float bestScore = 0;
-        NeuronList[][] neuralNets;
-        bool Kill;
+        private NeuronList[] bestNet = null;
+        private float bestScore = 0;
+        private NeuronList[][] neuralNets;
+        private bool Kill;
+        private int learnLen = 0;
 
         static void Main(string[] args)
         {
@@ -25,9 +27,6 @@ namespace NeuralNetTest
 
         public Program()
         {
-            CancellationTokenSource tokenSource = new CancellationTokenSource();
-            CancellationToken token = tokenSource.Token;
-
             string bestline;
             int bestof;
             while (true)
@@ -48,14 +47,8 @@ namespace NeuralNetTest
             //{
             //   return;
             //}
-
-            //Task Learning = Task.Factory.StartNew(() => {
-
-            LearnSession(bestof);
-
-            //}, token);
-
             
+            LearnSession(bestof);
         }
 
         private void Commands(string[] args)
@@ -63,13 +56,49 @@ namespace NeuralNetTest
             string path = "";
             switch (args[0].ToLower())
             {
+                case "new":
+                    bestNet = null;
+                    bestScore = 0;
+                    Console.WriteLine("Best network cleared.");
+                    break;
+                case "test":
+                    float[] vals = new float[args.Length - 1];
+                    bool failed = false;
+                    for (int i = 0; i < vals.Length; i++)
+                    {
+                        if (failed = !float.TryParse(args[i + 1], out vals[i]))
+                        {
+                            break;
+                        }
+                    }
+                    if (failed)
+                    {
+                        Console.WriteLine("Parsing inputs failed.");
+                        break;
+                    }
+                    float[] result = Test(vals);
+                    Console.Write("Result: ");
+                    for (int i = 0; i < result.Length; i++)
+                        Console.WriteLine(result[i]);
+                    break;
+                case "info":
+                    if (bestNet == null)
+                    {
+                        Console.WriteLine("Neural network is empty.");
+                        break;
+                    }
+                    Console.Write("\nInputs: {0}\nOutputs: {1}\nLayers: ", bestNet[0].array.Length, bestNet[bestNet.Length - 1].array.Length);
+                    for (int i = 1; i < bestNet.Length - 2; i++)
+                        Console.Write(bestNet[i].array.Length + " ");
+                    Console.WriteLine("\nCurrent best score: {0}\nCurrent %ACC: {1}", bestScore, learnLen != 0 ? (bestScore / (learnLen * 2) * 100) + "%" : "Unknown");
+                    break;
                 case "save":
                     if (args.Length < 2)
                     {
                         Console.WriteLine("Please specify a file path. Example: C:\\dir\\MyNeuralNet");
                         break;
                     }
-                    if(bestNet == null)
+                    if (bestNet == null)
                     {
                         Console.WriteLine("Cannot save an empty network.");
                         break;
@@ -81,12 +110,12 @@ namespace NeuralNetTest
 
                     NeuronList.SaveNet(bestNet, bestScore, path);
 
-                    Console.WriteLine("Saved to file {0}.\n", path);
+                    Console.WriteLine("Saved to file {0}\n", path);
                     break;
                 case "load":
                     args[0] = ""; // TODO: Load without bestScore
                     bool noBest = false;
-                    if(args[1] == "--noscore" || args[1] == "-ns")
+                    if (args[1] == "--noscore" || args[1] == "-ns")
                     {
                         noBest = true;
                         args[1] = "";
@@ -115,10 +144,17 @@ namespace NeuralNetTest
                     }
                     break;
                 case "help":
-                    Console.WriteLine("\nhelp\n- Shows this help dialog.\n\nsave [file]\n- Saves the 'best' Neural Network to [file].\n\n" +
-                        "load [file]\n- Loads the 'best' Neural Network from [file].\n\n" +
-                        "learn [x]\n- Sends the current neural net through [x] training sessions, or creates one.\n\n" +
+                    Console.WriteLine("\nhelp\n- Shows this help dialog.\n\n" +
+                        "new\n- Clears the current best neural network so a new one can be created.\n\n" +
+                        "save [file]\n- Saves the 'best' neural network to [file].\n\n" +
+                        "load [file]\n- Loads the 'best' neural network from [file].\n\n" +
+                        "test [inputs]\n- Tests the neural network against the inputs and returns its outputs. Missing inputs are 0. Excess inputs are truncated.\n\n" +
+                        "learn [x]\n- Sends the current neural network through [x] training sessions, or creates one.\n\n" +
+                        "info\n- Gives information about the current neural network.\n\n" +
                         "exit\n- Quits the program.\n");
+                    break;
+                case "exit":
+                    Environment.Exit(0);
                     break;
                 default:
                     Console.WriteLine("Unknown command.");
@@ -133,7 +169,7 @@ namespace NeuralNetTest
 
             for (int i = neuralNets[a].Length - 2; i >= 1; i--)
             {
-                neuralNets[a][i] = new NeuronList(neuralNets[a][i + 1], 15);
+                neuralNets[a][i] = new NeuronList(neuralNets[a][i + 1], NUM_NEURONS);
                 neuralNets[a][i].FillRandom(rand); // Fill all our layers with random values
             }
             neuralNets[a][0] = new NeuronList(neuralNets[a][1], 6); // Inputs
@@ -163,6 +199,15 @@ namespace NeuralNetTest
             return (prop < ACC_THRESHOLD) + "\t\t" + prop.ToString("f7") + "\t"+ bestNet[bestNet.Length - 1].ToString();
         }
 
+        private float[] Test(float[] input)
+        {
+            bestNet[0].Fill(input);
+
+            NeuronList.CleanFire(bestNet);
+
+            return bestNet[bestNet.Length - 1].GetValues();
+        }
+
         private void LearnSession(int bestof)
         {
             Kill = false;
@@ -171,8 +216,7 @@ namespace NeuralNetTest
 
             neuralNets = new NeuronList[TASKS][];
             float[] curScore = new float[TASKS];
-            int learnLen = 0;
-            Console.WriteLine("Ctrl+D to stop learning.\n\nTIME\t\tNUM\tBEST/5\t\tCAP\t%ACC");
+            Console.WriteLine("Ctrl+D to stop learning.\n\nTIME\t\tNUM\tBEST/{0}\t\tCAP\t%ACC", TASKS);
 
 
             Task Listen = Task.Factory.StartNew(() =>
@@ -267,7 +311,7 @@ namespace NeuralNetTest
                             {    // Probably a better way to do this. Checks if we're not getting anywhere
                                     break;
                             }
-                            else if (curScore[t] < bestScore - 5)//(res.Length / 7.0f))
+                            else if (curScore[t] < bestScore/1.3f)//(res.Length / 7.0f))
                                                                  // "res.length/?" lowered will allow more offshoots to potentially grow. Slower but maybe better results? Probably not.
                             {
                                 break;
@@ -327,7 +371,7 @@ namespace NeuralNetTest
 
             Console.WriteLine("\nDone! Type 'help' for commands.\n");
             string cmd;
-            while ((cmd = Console.ReadLine().ToLower()) != "exit" && cmd != "")
+            while ((cmd = Console.ReadLine().ToLower()) != "")
             {
                 string[] args = cmd.Split(' ');
                 Commands(args);
