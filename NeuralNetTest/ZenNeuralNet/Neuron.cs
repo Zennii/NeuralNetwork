@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace NeuralNet
+namespace ZenNeuralNet
 {
     class Neuron
     {
@@ -37,7 +37,7 @@ namespace NeuralNet
         public void RandomInit(Random rand, float scale)
         {
             // bias = (float)rand.NextDouble();
-            for (int i = 0; i < weights.Length; i++)
+            for (int i = weights.Length-1; i >= 0; i--)
             {
                 weights[i] = ((float)(rand.NextDouble() * 2) - 1) * scale; // -1 to 1
                 slopes[i] = DEFAULT_SLOPE; //((float)(rand.NextDouble() * 2) - 1) * scale;//START_SLOPE;
@@ -49,7 +49,7 @@ namespace NeuralNet
             //Default neruon: (float)Math.Tanh(value + bias);                                                      // Casting might be slow? But I don't feel like implementing tanh myself. Maybe later
             float Activ = Activator(Value);//Value < 0 ? 0 : Value;//fastTanh(Value);//
 
-            for (int i = 0; i < connections.array.Length; i++)
+            for (int i = connections.array.Length-1; i >= 0; i--)
             {
                 connections.array[i].Value += Activ * weights[i];
             }
@@ -88,7 +88,7 @@ namespace NeuralNet
         public static Neuron[] Copy(Neuron[] src)
         {
             Neuron[] ret = new Neuron[src.Length];
-            for(int i = 0; i < src.Length; i++)
+            for(int i = src.Length-1; i >= 0; i--)
             {
                 ret[i] = src[i].Copy();
             }

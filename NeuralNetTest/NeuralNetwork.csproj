@@ -42,8 +42,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="NeuralNet\Neuron.cs" />
-    <Compile Include="NeuralNet\NeuronList.cs" />
+    <Compile Include="ZenNeuralNet\NeuralNet.cs" />
+    <Compile Include="ZenNeuralNet\Neuron.cs" />
+    <Compile Include="ZenNeuralNet\NeuronList.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
