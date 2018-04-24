@@ -14,7 +14,7 @@ namespace ZenNeuralNet
 
         public float[] slopes; // * -0.9 every time the end result is wrong after a change
 
-        public static readonly float DEFAULT_SLOPE = 1f; // This probably has an optimized value that's perfect for quickly finding a good end value.
+        public static readonly float DEFAULT_SLOPE = 0.5f; // This probably has an optimized value that's perfect for quickly finding a good end value.
 
         public static readonly float SIGMOID_HEIGHT = 4.0f; // See: 
         public static readonly float SIGMOID_OFFSET = 2.0f; //      Activator(float x) { }
@@ -51,7 +51,7 @@ namespace ZenNeuralNet
         public void Fire(NeuronList connections)
         {
             //Default neruon: (float)Math.Tanh(value + bias);
-            float Activ = Activator(Value);//Value < 0 ? 0 : Value;//fastTanh(Value);//
+            float Activ = (float)(SIGMOID_HEIGHT / (1.0 + Math.Exp(-Value)) - SIGMOID_OFFSET);//Activator(Value);//Value < 0 ? 0 : Value;//fastTanh(Value);//
 
             for (int i = connections.array.Length-1; i >= 0; i--)
             {
@@ -66,9 +66,9 @@ namespace ZenNeuralNet
             Value = 0;
         }
 
-        public static float Activator(float x)
+        public static double Activator(float x)
         {
-            return  SIGMOID_HEIGHT / (1.0f + (float)Math.Exp(-x)) - SIGMOID_OFFSET;
+            return SIGMOID_HEIGHT / (1.0 + Math.Exp(-x)) - SIGMOID_OFFSET;
             /* This is kind of tuned to decrease learn time.
             *  If the sigmoid covers too many values, results are not narrow enough and take longer to hone in on the desired result.
             *  Too little, and the values are too narrow; restricting the math (And the inputs) and making desired results harder to reach.

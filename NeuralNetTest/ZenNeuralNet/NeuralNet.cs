@@ -7,12 +7,18 @@ namespace ZenNeuralNet
     class NeuralNet : LightList<NeuronList>
     {
         public const float ACC_THRESHOLD = 0.26f;
+        public int Layers = 0;
+        public int Neurons = 0;
 
         public NeuralNet(int layers) : base(layers)
-        {}
+        {
+            Layers = layers;
+        }
 
         public NeuralNet(int layers, int inputs, int layerNeurons, int outputs, Random rand) : base(layers)
         {
+            Layers = layers;
+            Neurons = layerNeurons;
             array[array.Length - 1] = new NeuronList(null, outputs); // Outputs
             array[array.Length - 1].Fill(rand);
 
@@ -47,20 +53,52 @@ namespace ZenNeuralNet
         public float BackProp(float[] desired)
         {
             float lastAcc = array[array.Length - 1].CompareTo(desired); // Closer to 0 is better
+            float initAcc = lastAcc;
             float newAcc = lastAcc;
-            for (int i = array.Length - 2; i >= 0; i--)
+            for (int i = array.Length - 2, startk = 0; i >= 0; i--) // for each layer
             {
-                for (int j = array[i].array.Length-1; j >= 0; j--)
+                startk = array[i].connections.array.Length - 1;
+                for (int j = array[i].array.Length-1; j >= 0; j--) // for each neuron
                 {
-                    for (int k = array[i + 1].array.Length -1; k >= 0; k--)
+                    for (int k = startk; k >= 0; k--) // for each connected neuron
                     {
-                        array[i].SlopeWeight(j, k);
-                        CleanFire(i); // Fires from i onward
-                        newAcc = array[array.Length - 1].CompareTo(desired);
-                        if (newAcc >= lastAcc)
-                            array[i].UndoSlopeWeight(j, k); // Last tweak failed
-                        else
-                            lastAcc = newAcc;
+                        if (array[i].array[j].slopes[k] > 0.001f || array[i].array[j].slopes[k] < -0.001f) // if we can modify the neuron
+                        {
+                            array[i].array[j].weights[k] += array[i].array[j].slopes[k];//array[i].SlopeWeight(j, k);
+
+
+                            for (int x = i, len = array.Length - 1; x < len; x++) // for each layer starting with i
+                            {
+                                for (int y = array[x].connections.array.Length - 1; y >= 0; y--) // clear each connection value
+                                {
+                                    array[x].connections.array[y].Value = 0;//.ClearValues();
+                                }
+
+
+                                for (int y = array[x].array.Length - 1; y >= 0; y--) // Fire the neurons to each connection
+                                {
+                                    array[x].array[y].Fire(array[x].connections);
+                                }
+                                //array[x].FireAll();
+                                //array[x].CleanFire();
+                            }
+                            //CleanFire(i); // Fires from i onward
+                            newAcc = array[array.Length - 1].CompareTo(desired);
+                            if (newAcc > lastAcc)
+                            {
+                                array[i].array[j].weights[k] -= array[i].array[j].slopes[k]; // Undo
+                                array[i].array[j].slopes[k] *= NeuronList.SLOPE_MOD; // Flip and reduce
+                            }
+                            //array[i].UndoSlopeWeight(j, k); // Last tweak failed
+                            else
+                            {
+                                lastAcc = newAcc;
+                            }
+                        }
+                        else if(k == startk) // Can't modify and we're at startk, push it down
+                        {
+                            startk--;
+                        }
                     } // k
                 } // j
             } // i
@@ -74,12 +112,13 @@ namespace ZenNeuralNet
 
         public NeuralNet Mutate(Random r)
         {
-            for (int i = r.Next(array.Length); i < array.Length - 1; i++)
+            int muts = r.Next(2, 9); // Per-network?
+            for (int i = r.Next(array.Length), len0 = array.Length - 1; i < len0; i++)
             {
                 for (int j = r.Next(array[i].array.Length), len1 = array[i].array.Length - 1; j < len1; j++)
                 {
-                    int a = r.Next(6);
-                    if (a == 1)
+                    int a = r.Next(muts);
+                    if (a < 3) // 0 1 2, since random doesn't seem to like repeating values often, this should help generate more "chain mutations"
                     {
                         array[i].array[j].slopes[r.Next(array[i].array[j].slopes.Length)] = Neuron.DEFAULT_SLOPE; //((float)r.NextDouble() * 2f) - 1f;
                         array[i].array[j].weights[r.Next(array[i].array[j].weights.Length)] = ((float)r.NextDouble() * 2f) - 1f;
@@ -95,7 +134,8 @@ namespace ZenNeuralNet
             // Clear next row and fire all rows except output
             for (int x = i, len = array.Length - 1; x < len; x++)
             {
-                array[x].CleanFire();
+
+                //array[x].CleanFire();
             }
         }
 
@@ -130,6 +170,7 @@ namespace ZenNeuralNet
                     for (int i = layers - 1; i >= 0; i--)
                     {
                         int neurons = reader.ReadInt32();
+                        bestNet.Neurons = neurons; // Temp
                         if (i == layers - 1) // Output layer
                         {
                             bestNet.array[i] = new NeuronList(null, neurons);
@@ -202,7 +243,22 @@ namespace ZenNeuralNet
         {
             array[0].Fill(input);
 
-            CleanFire();
+            for (int x = 0, len = array.Length - 1; x < len; x++)
+            {
+                for (int y = array[x].connections.array.Length - 1; y >= 0; y--)
+                {
+                    array[x].connections.array[y].Value = 0;//.ClearValues();
+                }
+
+
+                for (int y = array[x].array.Length - 1; y >= 0; y--)
+                {
+                    array[x].array[y].Fire(array[x].connections);
+                }
+                //array[x].FireAll();
+                //array[x].CleanFire();
+            }
+            //CleanFire();
             if (array[array.Length - 1].CompareTo(desired) >= 0.1f) // Learn only when above threshold
                 BackProp(desired);
             float prop = array[array.Length - 1].CompareTo(desired);
@@ -214,7 +270,20 @@ namespace ZenNeuralNet
         {
             array[0].Fill(input);
 
-            CleanFire();
+
+            for (int x = 0, len = array.Length - 1; x < len; x++)
+            {
+                for (int y = array[x].connections.array.Length - 1; y >= 0; y--)
+                {
+                    array[x].connections.array[y].Value = 0;//.ClearValues();
+                }
+                
+                for (int y = array[x].array.Length - 1; y >= 0; y--)
+                {
+                    array[x].array[y].Fire(array[x].connections);
+                }
+            }
+            //CleanFire();
 
             float prop = array[array.Length - 1].CompareTo(desired);
 
@@ -225,14 +294,31 @@ namespace ZenNeuralNet
         {
             array[0].Fill(input);
 
-            CleanFire();
+
+            for (int x = 0, len = array.Length - 1; x < len; x++)
+            {
+                for (int y = array[x].connections.array.Length - 1; y >= 0; y--)
+                {
+                    array[x].connections.array[y].Value = 0;//.ClearValues();
+                }
+
+
+                for (int y = array[x].array.Length - 1; y >= 0; y--)
+                {
+                    array[x].array[y].Fire(array[x].connections);
+                }
+                //array[x].FireAll();
+                //array[x].CleanFire();
+            }
+            //CleanFire();
 
             return array[array.Length - 1].GetValues();
         }
         public NeuralNet Copy()
         {
             NeuronList connections = null;
-            NeuralNet ret = new NeuralNet(array.Length);
+            NeuralNet ret = new NeuralNet(Layers);
+            ret.Neurons = Neurons;
             for (int i = array.Length - 1; i >= 0; i--)
             {
                 ret.array[i] = connections = array[i].Copy(connections);

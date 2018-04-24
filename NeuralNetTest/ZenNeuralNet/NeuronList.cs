@@ -6,7 +6,7 @@ namespace ZenNeuralNet
     class NeuronList : LightList<Neuron>
     {
         public NeuronList connections; // The forward layer of neurons to fire to
-        private static readonly float SLOPE_MOD = -0.9f; // negative flips the slope, 0.9 makes our slope lossy and come to a conclusion. 10% loss every change.
+        public static readonly float SLOPE_MOD = -0.9f; // negative flips the slope, 0.9 makes our slope lossy and come to a conclusion. 10% loss every change.
         //private static readonly float ACC_THRESHOLD = 1f;
 
         public NeuronList(NeuronList nextLayer, int size = 1) : base(size)
@@ -79,7 +79,7 @@ namespace ZenNeuralNet
             for (int i = array.Length-1; i >= 0; i--)
             {
                 float val = array[i].Value;
-                if (tanh) val = Neuron.Activator(val);
+                if (tanh) val = (float)(Neuron.SIGMOID_HEIGHT / (1.0 + Math.Exp(-val)) - Neuron.SIGMOID_OFFSET);//Neuron.Activator(val);
                 ret[i] = val;
             }
             return ret;
@@ -124,7 +124,7 @@ namespace ZenNeuralNet
             float smarts = 0;
             for (int i = array.Length-1; i >= 0; i--)
             {
-                smarts += Math.Abs(Neuron.Activator(array[i].Value) - desired[i]);
+                smarts += Math.Abs((float)(Neuron.SIGMOID_HEIGHT / (1.0 + Math.Exp(-array[i].Value)) - Neuron.SIGMOID_OFFSET)/*Neuron.Activator(array[i].Value)*/ - desired[i]);
             }
             return smarts;
         }
