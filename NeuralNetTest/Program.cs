@@ -6,14 +6,11 @@ namespace NeuralNetTest
 {
     class Program
     {
-        public const int TASKS = 12; // How many threads to use.
         public const int NUM_NEURONS = 13; // Number of neurons per layer. Currently constant throughout all layers
         private NeuralNet bestNet = null;
-        private float bestScore = float.MinValue;
+       // private float bestScore = float.MinValue;
         private NeuralNet[] neuralNets;
         private bool Kill;
-        private int learnLen = 0;
-        Task[] taskArray = new Task[TASKS];
 
 
         float[][] lessonplan = new float[][] {
@@ -91,7 +88,7 @@ namespace NeuralNetTest
             {
                 case "new":
                     bestNet = null;
-                    bestScore = 0;
+                    //net.bestScore = 0;
                     Console.WriteLine("Best network cleared.");
                     break;
                 case "test":
@@ -123,7 +120,7 @@ namespace NeuralNetTest
                     Console.Write("\nInputs: {0}\nOutputs: {1}\nLayers: ", bestNet.array[0].array.Length, bestNet.array[bestNet.array.Length - 1].array.Length);
                     for (int i = 1; i < bestNet.array.Length - 2; i++)
                         Console.Write(bestNet.array[i].array.Length + " ");
-                    Console.WriteLine("\nCurrent best score: {0}\nCurrent %ACC: {1}", bestScore, learnLen != 0 ? (bestScore / (learnLen * 2) * 100) + "%" : "Unknown");
+                    Console.WriteLine("\nCurrent best score: {0}\nCurrent %ACC: {1}", bestNet.bestScore, bestNet.learnLen != 0 ? (bestNet.bestScore / (bestNet.learnLen * 2) * 100) + "%" : "Unknown");
                     break;
                 case "save":
                     if (args.Length < 2)
@@ -141,12 +138,12 @@ namespace NeuralNetTest
                     if (!path.EndsWith(".znn"))
                         path += ".znn";
 
-                    bestNet.SaveNet(bestScore, path);
+                    bestNet.SaveNet(path);
 
                     Console.WriteLine("Saved to file {0}\n", path);
                     break;
                 case "load":
-                    args[0] = ""; // TODO: Load without bestScore
+                    args[0] = "";
                     bool noBest = false;
                     if (args[1] == "--noscore" || args[1] == "-ns")
                     {
@@ -156,10 +153,10 @@ namespace NeuralNetTest
                     path = string.Join(" ", args).Trim();
                     if (!path.EndsWith(".znn"))
                         path += ".znn";
-                    if ((bestScore = NeuralNet.LoadNet(ref bestNet, path)) >= 0)
+                    if (NeuralNet.LoadNet(ref bestNet, path))
                     {
                         if (noBest)
-                            bestScore = 0;
+                            bestNet.bestScore = 0;
                         Console.WriteLine(path + " loaded.\n");
                     }
                     else
@@ -197,179 +194,26 @@ namespace NeuralNetTest
 
 
 
-        private static readonly object _lock = new object();
         private void LearnSession(int bestof)
         {
-            Kill = false;
-            //int practice = 100; // Doesn't matter what it is, usually doesn't go above 20 anyway.
-            Console.WriteLine();
 
-            neuralNets = new NeuralNet[TASKS];
-            float[] curScore = new float[TASKS];
-            Console.WriteLine("[Ctrl+D] to stop learning.\n\nTIME\t\tNUM\tBEST/{0}\t\tCAP\t%ACC", TASKS);
-
-
-            Task Listen = Task.Factory.StartNew(() =>
+            if(bestNet == null)
             {
-                ConsoleKeyInfo key;
-                while (!Kill)
-                {
-                    if (Console.KeyAvailable)
-                    {
-                        key = Console.ReadKey(true);
-                        if (key.Key == ConsoleKey.D && key.Modifiers == ConsoleModifiers.Control)
-                        {
-                            Kill = true;
-                        }
-                    }
-                }
-            });
-
-            for (int h = 0; h < bestof; h++)
-            {
-                int curBest = -1;
-                int currentLeft = Console.CursorLeft;
-                int currentTop = Console.CursorTop;
-                //int tryNew = new Random().Next(24);
-
-                for (int ts = 0; ts < taskArray.Length; ts++)
-                {
-                    int t = ts;
-                    taskArray[ts] = Task.Factory.StartNew(() =>
-                    {
-                        Random rand = new Random(DateTime.Now.Millisecond + ((int)Task.CurrentId * 478));
-
-                        float lcurScore = 0, llcurScore = -1, lllcurScore = -2;
-                        if (bestNet != null)
-                        {
-                            if(h % 32 == 0)
-                            {
-                                // Could maybe be done with slopes?
-                                // TODO: Different neurons per layer
-                                /*if(rand.Next(lessonplan.Length - (int)bestScore) == 1)
-                                {
-                                    neuralNets[t] = new NeuralNet(rand.Next(Math.Max(3, bestNet.Layers - 50), bestNet.Layers + 50), 6, rand.Next(Math.Max(1, bestNet.Neurons - 50), bestNet.Neurons + 50), 1, rand);
-                                }
-                                else*/
-                                    neuralNets[t] = new NeuralNet(rand.Next(Math.Max(3, bestNet.Layers - 10), bestNet.Layers+10), 6, rand.Next(Math.Max(1, bestNet.Neurons - 10), bestNet.Neurons + 10), 1, rand);
-                            }
-                            else
-                            {
-                                neuralNets[t] = bestNet.MutateCopy(rand);
-                            }
-                        }
-                        else
-                        {
-                            neuralNets[t] = new NeuralNet(11, 6, NUM_NEURONS, 1, rand);
-                            //CreateNeuralNet(t, rand);
-                        }
-                        for (int i = 0; i < 33; i++)
-                        {
-                            if(t == 0)
-                            {
-                                lock (_lock)
-                                {
-                                    Console.SetCursorPosition(currentLeft + 60, currentTop);
-                                    Console.Write("                              " + i.ToString().PadRight(2));
-                                }
-                            }
-                            float[] res = new float[lessonplan.Length/2];
-                            for (int j = 0; j < lessonplan.Length; j+= 2)
-                            {
-                                res[j / 2] = neuralNets[t].Learn(lessonplan[j], lessonplan[j + 1]);
-                                if (t == 0)
-                                {
-                                    lock (_lock)
-                                    {
-                                        int conloc = (int)((float)j / lessonplan.Length * 30);
-                                        Console.SetCursorPosition(currentLeft + 60 + conloc, currentTop);
-                                        Console.Write(conloc % 2 == 0 ? '-' : '=');
-                                        //Console.SetCursorPosition(currentLeft, currentTop);
-                                    }
-                                }
-                            }
-
-                            if (Kill) break;
-
-                            learnLen = res.Length;
-                            curScore[t] = 0;
-                            for (int j = 0; j < res.Length; j++)
-                            {
-                                float accu = res[j];
-                                if (accu < NeuralNet.ACC_THRESHOLD - 0.1f)
-                                {
-                                    curScore[t] += 1f;
-                                }
-                                curScore[t] += 1f - accu;
-                            }
-
-                            if (curScore[t] == lcurScore && curScore[t] == llcurScore && curScore[t] == lllcurScore || i == 32)
-                            {    // Probably a better way to do this. Checks if we're not getting anywhere
-                                    break;
-                            }
-                            if (curScore[t] < bestScore/1.3f)//(res.Length / 7.0f))
-                                                                 // "res.length/?" lowered will allow more offshoots to potentially grow. Slower but maybe better results? Probably not.
-                            {
-                                break;
-                            }
-
-                        lllcurScore = lcurScore;
-                        llcurScore = lcurScore;
-                        lcurScore = curScore[t];
-                    }
-                        lock (_lock)
-                        {
-                            Console.SetCursorPosition(currentLeft + 93 + t, currentTop);
-                            Console.Write(curScore[t] > bestScore ? 'o':'.');
-                            Console.SetCursorPosition(currentLeft, currentTop);
-                        }
-
-                    });
-                }
-                lock (_lock)
-                {
-                    Console.SetCursorPosition(currentLeft, currentTop);
-                    Console.WriteLine("[" + DateTime.Now.ToLongTimeString() + "]\t" + h.ToString("d4") + "\t" + "WORKING" + "\t\t" + learnLen * 2 + "\t" + "WORKING".PadRight(64));
-                    Console.SetCursorPosition(currentLeft, currentTop);
-                }
-
-                Task.WaitAll(taskArray);
-
-                for (int i = 0; i < curScore.Length; i++)
-                {
-                    if (curScore[i] > bestScore)
-                    {
-                        bestScore = curScore[i];
-                        curBest = i;
-                    }
-                }
-                if (curBest >= 0)
-                {
-                    bestNet = neuralNets[curBest].Copy();
-                    Console.WriteLine("[" + DateTime.Now.ToLongTimeString() + "]\t" + h.ToString("d4") + "\t" + bestScore.ToString("f5").PadRight(8) + "\t" + learnLen * 2 + "\t" + ((bestScore / (learnLen * 2)) * 100).ToString("f2") + "\t");
-                }
-                if (bestScore >= (learnLen * 2.0f) - 0.1f || Kill)
-                    break;
+                bestNet = new NeuralNet(11, 6, NUM_NEURONS, 1, new Random());
             }
-
-            Kill = true;
+            bestNet.LearnSession(lessonplan, bestof);
             
-            Console.WriteLine("[" + DateTime.Now.ToLongTimeString() + "]\tDone Test\t\t\t\t\t\t\t\n");
+            Console.WriteLine("-\t-\t- FINAL -\t-\t-\n\nSUCCESS\t\tACC [MIN " + NeuralNet.ACC_THRESHOLD.ToString("f2") + "]");
+            Console.WriteLine(bestNet.Test(new float[] { 4, 3, 2, 3, 4, 5 }, new float[] { 0 }));
+            Console.WriteLine(bestNet.Test(new float[] { 4, 4, 2, 2, 3, 3 }, new float[] { 0 }));
+            Console.WriteLine(bestNet.Test(new float[] { 9, 9, 9, 9, 9, 9 }, new float[] { 0 }));
+            Console.WriteLine(bestNet.Test(new float[] { 7, 8, 2, 3, 4, 5 }, new float[] { 1 }));
+            Console.WriteLine(bestNet.Test(new float[] { 0, 8, 2, 3, 4, 1 }, new float[] { 1 }));
+            Console.WriteLine(bestNet.Test(new float[] { 5, 3, 2, 0, 9, 1 }, new float[] { 1 }));
 
-            if (bestNet != null)
-            {
-                Console.WriteLine("-\t-\t- FINAL -\t-\t-\n\nSUCCESS\t\tACC [MIN " + NeuralNet.ACC_THRESHOLD.ToString("f2") + "]");
-                Console.WriteLine(bestNet.Test(new float[] { 4, 3, 2, 3, 4, 5 }, new float[] { 0 }));
-                Console.WriteLine(bestNet.Test(new float[] { 4, 4, 2, 2, 3, 3 }, new float[] { 0 }));
-                Console.WriteLine(bestNet.Test(new float[] { 9, 9, 9, 9, 9, 9 }, new float[] { 0 }));
-                Console.WriteLine(bestNet.Test(new float[] { 7, 8, 2, 3, 4, 5 }, new float[] { 1 }));
-                Console.WriteLine(bestNet.Test(new float[] { 0, 8, 2, 3, 4, 1 }, new float[] { 1 }));
-                Console.WriteLine(bestNet.Test(new float[] { 5, 3, 2, 0, 9, 1 }, new float[] { 1 }));
-
-                Console.WriteLine(bestNet.Test(new float[] { 1, 2, 9, 8, 4, 5 }, new float[] { 1 }));
-                Console.WriteLine(bestNet.Test(new float[] { 1, 0, 2, 3, 4, 6 }, new float[] { 1 }));
-                Console.WriteLine(bestNet.Test(new float[] { 8, 7, 7, 8, 8, 7 }, new float[] { 0 }));
-            }
+            Console.WriteLine(bestNet.Test(new float[] { 1, 2, 9, 8, 4, 5 }, new float[] { 1 }));
+            Console.WriteLine(bestNet.Test(new float[] { 1, 0, 2, 3, 4, 6 }, new float[] { 1 }));
+            Console.WriteLine(bestNet.Test(new float[] { 8, 7, 7, 8, 8, 7 }, new float[] { 0 }));
 
             Console.WriteLine("\nDone! Type 'help' for commands.\n");
             string cmd;

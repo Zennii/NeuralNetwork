@@ -220,6 +220,20 @@ namespace ZenNeuralNet
             return did;
         }
 
+        public void DelLast()
+        {
+            if(count > 0)
+            {
+                array[array.Length - 1] = default(T);
+                count--;
+
+                if (count <= array.Length / 2)
+                {
+                    Array.Resize(ref array, array.Length / 2);
+                }
+            }
+        }
+
         public void Fill(T val)
         {
             for (int i = array.Length-1; i >= 0; i--)
